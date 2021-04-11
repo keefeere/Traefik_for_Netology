@@ -1,0 +1,5 @@
+.vagrant/
+*.deb
+
+
+/minio/Dratuti.jpg

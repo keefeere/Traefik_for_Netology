@@ -1,0 +1,23 @@
+ 
+Vagrant.configure("2") do |config|
+#Set up machine - traefik
+  config.vm.define "traefik" do |traefik|
+    traefik.vm.box = 'ubuntu/focal64'
+    traefik.vm.hostname = "traefik"
+    traefik.vm.network :private_network, ip: "192.168.99.10"
+
+    #bridged network for acces from internet, fixing mac for dhcp lease
+    traefik.vm.network :public_network, :bridge => "Realtek USB GbE Family Controller", :mac=> "0800FFFFFFFF" #paste your mac here 
+    traefik.vm.provider "virtualbox" do |v|
+      v.memory = 1024
+      v.cpus = 1
+      #Bug in WSL+Vagrant. Need this
+      v.customize [ "modifyvm", :id, "--uartmode1", "disconnected" ]
+    end
+
+    traefik.vm.provision "docker" 
+    traefik.vm.provision "shell", path: "start.sh"
+    
+
+  end
+end

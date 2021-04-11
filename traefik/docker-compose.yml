@@ -1,0 +1,89 @@
+version: "3.3"
+
+services:
+
+  traefik:
+    image: "traefik:v2.4"
+    container_name: "traefik"
+    command:
+      #- "--log.level=DEBUG"
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--entrypoints.minioweb.address=:9001"
+      - "--certificatesresolvers.myresolver.acme.httpchallenge=true"
+      - "--certificatesresolvers.myresolver.acme.httpchallenge.entrypoint=web"
+      #- "--certificatesresolvers.myresolver.acme.caserver=https://acme-staging-v02.api.letsencrypt.org/directory"
+      - "--certificatesresolvers.myresolver.acme.email=keefeere@ukr.net"
+      - "--certificatesresolvers.myresolver.acme.storage=/letsencrypt/acme.json"
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8080:8080"
+      - "9001:9001"
+    volumes:
+      - "~/letsencrypt:/letsencrypt"
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+
+  # whoami:
+  #   image: "traefik/whoami"
+  #   container_name: "simple-service"
+  #   labels: 
+  #     - "traefik.enable=true"
+  #     - "traefik.http.routers.whoami.rule=Host(`your_doma.in`)"
+  #     - "traefik.http.routers.whoami.entrypoints=websecure"
+  #     - "traefik.http.routers.whoami.entrypoints=web"
+  #     - "traefik.http.routers.whoami.tls.certresolver=myresolver"
+
+  flask:
+    image: "docker.flask"
+    depends_on:
+      - minio-mc
+    container_name: "docker.flask"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.flask-http.rule=Host(`your_doma.in`)"
+      - "traefik.http.routers.flask-http.entrypoints=web"
+      - "traefik.http.routers.flask-http.service=flask-http-service"
+      - "traefik.http.services.flask-http-service.loadbalancer.server.port=80"
+
+
+      - "traefik.http.routers.flask-https.rule=Host(`your_doma.in`)"
+      - "traefik.http.routers.flask-https.entrypoints=websecure"
+      - "traefik.http.routers.flask-https.service=flask-https-service"
+      - "traefik.http.services.flask-https-service.loadbalancer.server.port=80"
+      - "traefik.http.routers.flask-https.tls.certresolver=myresolver"
+
+    ports:
+      - "5000:80"
+
+  minio:
+    image: "minio/minio"
+    container_name: "minio"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.minio-http.rule=Host(`your_doma.in`)"
+      - "traefik.http.routers.minio-http.entrypoints=minioweb"
+      - "traefik.http.routers.minio-http.service=minio-http-service"
+      - "traefik.http.services.minio-http-service.loadbalancer.server.port=9000"
+    ports:
+      - "9000:9000"
+    command: server /export
+
+
+  minio-mc:
+    image: minio/mc
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      /usr/bin/mc config host add myminio http://192.168.99.10:9000 minioadmin minioadmin;
+      /usr/bin/mc rm -r --force myminio/testbucket;
+      /usr/bin/mc mb myminio/testbucket;
+      /usr/bin/mc cp /static/Dratuti.jpg myminio/testbucket;
+      exit 0;
+      "
+    volumes:
+      - "/vagrant/minio:/static"
