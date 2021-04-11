@@ -1,23 +1,23 @@
- 
-Vagrant.configure("2") do |config|
-#Set up machine - traefik
-  config.vm.define "traefik" do |traefik|
-    traefik.vm.box = 'ubuntu/focal64'
-    traefik.vm.hostname = "traefik"
-    traefik.vm.network :private_network, ip: "192.168.99.10"
-
-    #bridged network for acces from internet, fixing mac for dhcp lease
-    traefik.vm.network :public_network, :bridge => "Realtek USB GbE Family Controller", :mac=> "0800FFFFFFFF" #paste your mac here 
-    traefik.vm.provider "virtualbox" do |v|
-      v.memory = 1024
-      v.cpus = 1
-      #Bug in WSL+Vagrant. Need this
-      v.customize [ "modifyvm", :id, "--uartmode1", "disconnected" ]
-    end
-
-    traefik.vm.provision "docker" 
-    traefik.vm.provision "shell", path: "start.sh"
+ # Это конфигурационный файл для vagrant в виде кода на языке Ruby
+ Vagrant.configure("2") do |config|
+  # Set up machine - traefik
+    config.vm.define "traefik" do |traefik| #Создаем виртуальную машину c названием traefik, далее её настройки:
+      traefik.vm.box = 'ubuntu/focal64' #используем сборку Ubuntu 20.04 LTS с кодовым названием Focal Fossa
+      traefik.vm.hostname = "traefik" #Устанавливаем имя хоста
+      traefik.vm.network :private_network, ip: "192.168.99.10" #устанавливаем сетевой интерфейс для управления виртуальной машиной
     
-
+      # bridged network for acces from internet, fixing mac for dhcp lease
+      # интерфейс который необходим для связи виртуальной машины с локальной сетью для выхода в интернет
+      traefik.vm.network :public_network, :bridge => "Realtek USB GbE Family Controller", :mac=> "0800FFFFFFFF" #paste your mac here 
+      traefik.vm.provider "virtualbox" do |v| #настройки виртуальной машины
+        v.memory = 1024
+        v.cpus = 1
+        #Bug in WSL+Vagrant. Need this
+        v.customize [ "modifyvm", :id, "--uartmode1", "disconnected" ]
+      end
+  # после создания виртуальной машины будут запущен процесс «подготовки» - выполнение инструкций по настройке виртуальной машины
+      traefik.vm.provision "docker" # установка движка и инструмента управления контейнерами Docker 
+      traefik.vm.provision "shell", path: "start.sh" # Запуск инструкций интерпретатора bash который проводит окончательные настройки
+    end
   end
-end
+  

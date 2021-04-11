@@ -1,31 +1,34 @@
+# объявление версии для которой написан этот файл конфигурации
 version: "3.3"
 
+# перечисление сервисов запускаемых в контейнерах
 services:
 
+  # Запускаем балансировщик Traefik в контейнере
   traefik:
-    image: "traefik:v2.4"
-    container_name: "traefik"
-    command:
+    image: "traefik:v2.4" # Версия образа для загрузки. т.к. в библиотеке локальных образов такого нет докер его скачает из docker hub
+    container_name: "traefik" 
+    command: #директивы для запуска traefik
       #- "--log.level=DEBUG"
-      - "--api.insecure=true"
-      - "--providers.docker=true"
-      - "--providers.docker.exposedbydefault=false"
-      - "--entrypoints.web.address=:80"
-      - "--entrypoints.websecure.address=:443"
-      - "--entrypoints.minioweb.address=:9001"
-      - "--certificatesresolvers.myresolver.acme.httpchallenge=true"
-      - "--certificatesresolvers.myresolver.acme.httpchallenge.entrypoint=web"
+      - "--api.insecure=true" # защищенный https режим API трефика
+      - "--providers.docker=true" #получение конфигурации с помощью провайдера docker путем чтения тегов
+      - "--providers.docker.exposedbydefault=false" #учитывать только контейнеры с тегом traefik.enable=true
+      - "--entrypoints.web.address=:80" #точка входа, принимающая подключения http называется web
+      - "--entrypoints.websecure.address=:443" #точка входа, принимающая подключения https называется websecure
+      - "--entrypoints.minioweb.address=:9001" #точка входа, принимающая подключения к серверу MinIO  называется minioweb
+      - "--certificatesresolvers.myresolver.acme.httpchallenge=true" #получение сертификата от Let's Encrypt через HTTP
+      - "--certificatesresolvers.myresolver.acme.httpchallenge.entrypoint=web" #через точку входа web
       #- "--certificatesresolvers.myresolver.acme.caserver=https://acme-staging-v02.api.letsencrypt.org/directory"
-      - "--certificatesresolvers.myresolver.acme.email=keefeere@ukr.net"
-      - "--certificatesresolvers.myresolver.acme.storage=/letsencrypt/acme.json"
-    ports:
+      - "--certificatesresolvers.myresolver.acme.email=keefeere@ukr.net" #некрасиво, хардкод
+      - "--certificatesresolvers.myresolver.acme.storage=/letsencrypt/acme.json" #где хранить настройки
+    ports: #порты которые открыты у контейнера и "проброшены" в хостовую машину
       - "80:80"
       - "443:443"
       - "8080:8080"
       - "9001:9001"
-    volumes:
-      - "~/letsencrypt:/letsencrypt"
-      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+    volumes: #тома контейнера которые монтируются на хостовую машину
+      - "~/letsencrypt:/letsencrypt" #для сохранения сертификатов между перезапусками
+      - "/var/run/docker.sock:/var/run/docker.sock:ro" #Docker socket для того чтобы traefik мог из контейнера получить доступ к движку docker хоста
 
   # whoami:
   #   image: "traefik/whoami"
@@ -37,19 +40,20 @@ services:
   #     - "traefik.http.routers.whoami.entrypoints=web"
   #     - "traefik.http.routers.whoami.tls.certresolver=myresolver"
 
+  # Запускаем наше приложение flack в контейнере
   flask:
-    image: "docker.flask"
-    depends_on:
-      - minio-mc
-    container_name: "docker.flask"
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.flask-http.rule=Host(`your_doma.in`)"
-      - "traefik.http.routers.flask-http.entrypoints=web"
-      - "traefik.http.routers.flask-http.service=flask-http-service"
-      - "traefik.http.services.flask-http-service.loadbalancer.server.port=80"
+    image: "docker.flask" # используем образ который мы собрали до этого
+    depends_on: # Эта директива задает очередность запуска. В данном случае контейнер запустится только после запуска контейнера minio-mc
+      - minio-mc 
+    container_name: "docker.flask" #фиксируем название контейнера
+    labels: # установка меток, которые позволят traefik получить настройки
+      - "traefik.enable=true" # учитывать этот контейнер 
+      - "traefik.http.routers.flask-http.rule=Host(`your_doma.in`)" # настроим маршрут flask-http: проверка имени хоста
+      - "traefik.http.routers.flask-http.entrypoints=web" # точка входа маршрута - web
+      - "traefik.http.routers.flask-http.service=flask-http-service" # указываем сервис который обрабатывает запросы: flask-http-service
+      - "traefik.http.services.flask-http-service.loadbalancer.server.port=80" # порт который прослушивает наш сервис
 
-
+        # повторяем настройки для https
       - "traefik.http.routers.flask-https.rule=Host(`your_doma.in`)"
       - "traefik.http.routers.flask-https.entrypoints=websecure"
       - "traefik.http.routers.flask-https.service=flask-https-service"
@@ -57,12 +61,13 @@ services:
       - "traefik.http.routers.flask-https.tls.certresolver=myresolver"
 
     ports:
-      - "5000:80"
-
+      - "5000:80" #перенаправляем порт в контейнере flack с 5000 на 80
+# запускаем контейнер с объекным хранилищем совместимым c S3 - MinIO
   minio:
-    image: "minio/minio"
-    container_name: "minio"
+    image: "minio/minio" #используем образ из Docker Hub
+    container_name: "minio" 
     labels:
+      # аналогичные настройки traefik для точки входа minio
       - "traefik.enable=true"
       - "traefik.http.routers.minio-http.rule=Host(`your_doma.in`)"
       - "traefik.http.routers.minio-http.entrypoints=minioweb"
@@ -70,20 +75,22 @@ services:
       - "traefik.http.services.minio-http-service.loadbalancer.server.port=9000"
     ports:
       - "9000:9000"
-    command: server /export
+    command: server /export #команда для запуска контейнера
 
-
+# запускаем контейнер клиента для MinIO - minio-mc. Он поможет нам передать файл картинки в MinIO
   minio-mc:
-    image: minio/mc
+    image: minio/mc #используем образ из Docker Hub
     depends_on:
-      - minio
+      - minio # очевидно запуск только после того как MinIO уже запущен
+      # передаем команды для выполнения внутри контейнера
+      # этот участок так же можно улучшить убрав хардкод, добавить генерацию и сохранение секретов к MinIO
     entrypoint: >
       /bin/sh -c "
-      /usr/bin/mc config host add myminio http://192.168.99.10:9000 minioadmin minioadmin;
-      /usr/bin/mc rm -r --force myminio/testbucket;
-      /usr/bin/mc mb myminio/testbucket;
-      /usr/bin/mc cp /static/Dratuti.jpg myminio/testbucket;
+      /usr/bin/mc config host add myminio http://192.168.99.10:9000 minioadmin minioadmin; # добавим адрес и настройки хоста с Minio которым будем управлять
+      /usr/bin/mc rm -r --force myminio/testbucket; #удаляем если есть наш тестовый бакет
+      /usr/bin/mc mb myminio/testbucket; # команда mb cоздает бакет testbucket
+      /usr/bin/mc cp /static/Dratuti.jpg myminio/testbucket; #копируем файл из папки static в бакет
       exit 0;
       "
     volumes:
-      - "/vagrant/minio:/static"
+      - "/vagrant/minio:/static" #подключаем том с нашей картинкой

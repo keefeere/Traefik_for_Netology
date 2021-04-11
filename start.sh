@@ -1,13 +1,25 @@
-#!/bin/bash
+#!/bin/bash 
+# ^Шебанг - указание использовать для запуска командный интерпретатор BASH
+
+# Объявление переменной - название контейнера с приложением Flask
 app="docker.flask"
 
-docker stop $(docker ps -a -q)
-docker rm $(docker ps -a -q)
-docker rmi $(docker images -q)
+# Следующие три команды необходимы для идемпотености файла подготовки 
+# start.sh - они убирают все образы и контейнеры чтобы процесс подготовки можно было запускать 
+# несколько раз на уже созданной виртуальной машине. 
+docker stop $(docker ps -a -q) #остановка всех запущенных контейнеров
+docker rm $(docker ps -a -q) #удаление остановленных контейнеров
+docker rmi $(docker images -q) #удаление всех образов
 
-cd /vagrant/flask
-docker build -t ${app} .
+cd /vagrant/flask #переходим в папку проекта flask 
+# (vagrant по умолчанию подключает папку проекта в папку /vagrant в запущенных им виртуальных системах
+# используя механизм shared folders)
+docker build -t ${app} . #даем указание докеру на сборку образа из этой папки
+
+# устанавливаем из репозитория инструмент для сборки и запуска 
+# многоконтейнерных приложений docker-compose
 sudo apt-get install -y docker-compose 
-
-cd /vagrant/traefik
-docker-compose up -d
+cd /vagrant/traefik #переходим в папку traefik
+# при помощи docker-compose запускаем все контейнеры описанные в 
+# файле docker-compose.yml (название по умолчанию) в фоновом режиме используя ключ -d или --detach
+docker-compose up -d 
